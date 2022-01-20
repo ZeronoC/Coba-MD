@@ -5,21 +5,14 @@
 */
 
 require('./config')
-//const { default: makeWASocket, useSingleFileAuthState, DisconnectReason, generateForwardMessageContent, prepareWAMessageMedia, generateWAMessageFromContent, generateMessageID, downloadContentFromMessage } = require("@adiwajshing/baileys-md")
-const { 
-default: makeWASocket, 
-DisconnectReason, 
-AnyMessageContent, 
-delay, 
-useSingleFileAuthState 
-} = require('@adiwajshing/baileys-md')
-const { state, loadState, saveState } = useSingleFileAuthState(`./${sessionName}.json`)
+const { default: makeWASocket, useSingleFileAuthState, DisconnectReason, generateForwardMessageContent, prepareWAMessageMedia, generateWAMessageFromContent, generateMessageID, downloadContentFromMessage } = require("@adiwajshing/baileys-md")
+const { state, saveState } = useSingleFileAuthState(`./${sessionName}.json`)
 const pino = require('pino')
-const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const fs = require('fs')
 const chalk = require('chalk')
 const fetch = require('node-fetch')
 const FileType = require('file-type')
+const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const { smsg, isUrl, generateMessageTag } = require('./lib/myfunc')
 
 global.api = (name, path = '/', query = {}, apikeyqueryname) => (name in global.APIs ? global.APIs[name] : name) + path + (query || apikeyqueryname ? '?' + new URLSearchParams(Object.entries({ ...query, ...(apikeyqueryname ? { [apikeyqueryname]: global.APIKeys[name in global.APIs ? global.APIs[name] : name] } : {}) })) : '')
@@ -29,7 +22,7 @@ async function startHisoka() {
     const hisoka = makeWASocket({
         logger: pino({ level: 'silent' }),
         printQRInTerminal: true,
-        browser: ['Ikan Multi Device'],
+        browser: ['Hisoka Multi Device','Safari','1.0.0'],
         auth: state
     })
 
@@ -70,15 +63,9 @@ async function startHisoka() {
                 }
 
                 if (anu.action == 'add') {
-                    hisoka.sendMessage(anu.id, { image: { url: ppuser }, contextInfo: { mentionedJid: [num] }, caption: `*Selamat Datang*
- *USER INFO*
- *Nama : @${num.split("@")[0]}*
- *Grup : ${metadata.subject}*
- 
- *Ketik .menu untuk melihat fitur*
- *bot*` })
+                    hisoka.sendMessage(anu.id, { image: { url: ppuser }, contextInfo: { mentionedJid: [num] }, caption: `Welcome To ${metadata.subject} @${num.split("@")[0]}` })
                 } else if (anu.action == 'remove') {
-                    hisoka.sendMessage(anu.id, { image: { url: ppuser }, contextInfo: { mentionedJid: [num] }, caption: `@${num.split("@")[0]} Selamat Tinggal Beban Group ${metadata.subject}` })
+                    hisoka.sendMessage(anu.id, { image: { url: ppuser }, contextInfo: { mentionedJid: [num] }, caption: `@${num.split("@")[0]} Leaving To ${metadata.subject}` })
                 }
             }
         } catch (err) {
@@ -88,7 +75,6 @@ async function startHisoka() {
 	
     // Setting
     hisoka.public = true
-    hisoka.modelmenu = "gif"
 
     hisoka.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update
@@ -135,7 +121,7 @@ async function startHisoka() {
      * @param {*} options 
      * @returns 
      */
-    hisoka.sendVideo = async (jid, path, gif = false, caption = '', quoted = '', options) => {
+    hisoka.sendVideo = async (jid, path, caption = '', quoted = '', gif = false, options) => {
         let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await fetch(path)).buffer() : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
         return await hisoka.sendMessage(jid, { video: buffer, caption: caption, gifPlayback: gif, ...options }, { quoted })
     }
@@ -153,7 +139,7 @@ async function startHisoka() {
         let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await fetch(path)).buffer() : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
         return await hisoka.sendMessage(jid, { audio: buffer, ptt: ptt, ...options }, { quoted })
     }
-    
+
     /**
      * 
      * @param {*} jid 
@@ -166,13 +152,13 @@ async function startHisoka() {
 
     /**
      * 
-     * @param {*} message 
-     * @param {*} filename 
-     * @param {*} attachExtension 
+     * @param {*} jid 
+     * @param {*} path 
+     * @param {*} quoted 
+     * @param {*} options 
      * @returns 
      */
-	 
-	  hisoka.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
+    hisoka.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
         let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await fetch(path)).buffer() : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
         let buffer
         if (options && (options.packname || options.author)) {
@@ -205,27 +191,45 @@ async function startHisoka() {
         await hisoka.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
         return buffer
     }
-	 
-	 
-	 
-	 
-	 
-	 
+	
+    /**
+     * 
+     * @param {*} message 
+     * @param {*} filename 
+     * @param {*} attachExtension 
+     * @returns 
+     */
     hisoka.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
+        let quoted = message.msg ? message.msg : message
         let mime = (message.msg || message).mimetype || ''
-        let messageType = mime.split('/')[0]
-        let extension = mime.split('/')[1]
-        trueFileName = attachExtension ? (filename + '.' + extension) : filename
-        const stream = await downloadContentFromMessage(message, messageType)
+        let messageType = mime.split('/')[0].replace('application', 'document') ? mime.split('/')[0].replace('application', 'document') : mime.split('/')[0]
+        const stream = await downloadContentFromMessage(quoted, messageType)
         let buffer = Buffer.from([])
         for await(const chunk of stream) {
             buffer = Buffer.concat([buffer, chunk])
         }
+	let type = await FileType.fromBuffer(buffer)
+        trueFileName = attachExtension ? (filename + '.' + type.ext) : filename
         // save to file
         await fs.writeFileSync(trueFileName, buffer)
         return trueFileName
     }
     
+    /**
+     * 
+     * @param {*} jid 
+     * @param {*} path 
+     * @param {*} quoted 
+     * @param {*} options 
+     * @returns 
+     */
+    hisoka.sendMedia = async (jid, path, quoted, options = {}) => {
+	 let { ext, mime, data } = await hisoka.getFile(path)
+	 messageType = mime.split("/")[0]
+	 pase = messageType.replace('application', 'document') || messageType
+	 return await hisoka.sendMessage(m.chat, { [`${pase}`]: data, mimetype: mime, ...options }, { quoted })
+    }
+
     /**
      * 
      * @param {*} jid 
